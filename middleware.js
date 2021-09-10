@@ -5,6 +5,7 @@ function isLoggedIn(req, res, next) {
   next();
 }
 
+
 async function isAuthor(req, res, next) {
   let attraction = await Attraction.findOne({ _id: req.params.id });
 

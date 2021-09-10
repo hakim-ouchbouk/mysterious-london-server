@@ -17,10 +17,14 @@ const attractionSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-
-  address: String,
-
-  imageURL: String,
+  imageURLs: [String],
+  reviews: [
+    { content: String, stars: Number, author: mongoose.Types.ObjectId },
+  ],
+  geocode: {
+    lat: Number,
+    lng: Number,
+  },
 });
 
 module.exports = mongoose.model("Attraction", attractionSchema);

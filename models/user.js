@@ -4,9 +4,9 @@ const passportLocalMongoose = require("passport-local-mongoose");
 
 const User = new Schema({
   addedAttractions: [mongoose.Types.ObjectId],
-  beenThere: [mongoose.Types.ObjectId],
-  wantToVisit: [mongoose.Types.ObjectId],
-  list: [mongoose.Types.ObjectId],
+  beenThere: [{ type: mongoose.Types.ObjectId, ref: "Attraction" }],
+  wantToVisit: [{ type: mongoose.Types.ObjectId, ref: "Attraction" }],
+  list: [{ type: mongoose.Types.ObjectId, ref: "Attraction" }],
 });
 
 User.plugin(passportLocalMongoose);
