@@ -17,7 +17,7 @@ const attractionSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  imageURLs: [String],
+  images: [{ url: String, public_id: String }],
   reviews: [
     { content: String, stars: Number, author: mongoose.Types.ObjectId },
   ],

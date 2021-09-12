@@ -9,9 +9,12 @@ const multer = require("multer");
 const cors = require("cors");
 // const flash = require('connect-flash')
 const upload = multer({ dest: "uploads/" });
-const { cloudinaryUploader, getGeocode } = require("./tools");
-
-//GOOGLE_MAPS_API_KEY
+const _ = require("lodash");
+const {
+  cloudinaryUploader,
+  getGeocode,
+  cloudinaryDeleteImages,
+} = require("./tools");
 
 const app = express();
 
@@ -54,6 +57,11 @@ app.get("/", (req, res) => {
 });
 
 //AUTH
+
+app.post("/image", upload.single("image"), async (req, res) => {
+  let url = await cloudinaryUploader(req.file);
+  res.send(url);
+});
 
 app.post("/login", passport.authenticate("local"), (req, res) => {
   let { _id, username } = req.user;
@@ -99,7 +107,7 @@ app.post(
     });
 
     for (let file of req.files) {
-      attraction.imageURLs.push(await cloudinaryUploader(file));
+      attraction.images.push(await cloudinaryUploader(file));
     }
 
     let geocode = await getGeocode(req.body.location);
@@ -118,32 +126,59 @@ app.put(
   isLoggedIn,
   upload.array("images"),
   async (req, res) => {
-    if (req.files.length > 0) {
-      let imageURLs = [];
-      for (let file of req.files) {
-        imageURLs.push(await cloudinaryUploader(file));
-      }
-      let geocode = await getGeocode(req.body.location);
+    let { name, description, location, deleteImages } = req.body;
+    let deleteImgs = JSON.parse(deleteImages);
+    let geocode = await getGeocode(location);
 
+    let updateImages = async (_id, deleteImgs) => {
+      let attraction = await Attraction.findOne({ _id });
+      if (deleteImgs.length > 0) {
+        deleteImgs.map( (image) => {
+          let index = _.findIndex(
+            attraction.images,
+            ({ public_id }) => public_id === image.public_id
+          );
+          attraction.images.splice(index, 1);
+        });
+        cloudinaryDeleteImages(deleteImgs);
+        return attraction.images;
+      }
+    };
+
+    if (req.files.length > 0) {
+      let images = [];
+
+      for (let file of req.files) {
+        images.push(await cloudinaryUploader(file));
+      }
+      images.concat(updateImages(req.params.id, deleteImgs));
       let attraction = await Attraction.findOneAndUpdate(
         { _id: req.params.id },
-        { ...req.body, geocode, imageURLs },
+        { name, description, location, geocode, images },
         { new: true }
       );
+
       res.send(attraction);
     } else {
       let attraction = await Attraction.findOneAndUpdate(
         { _id: req.params.id },
-        { ...req.body },
+        {
+          name,
+          description,
+          location,
+          geocode,
+          image: updateImages(req.params.id, deleteImgs),
+        },
         { new: true }
       );
+
       res.send(attraction);
     }
   }
 );
 
 app.get("/attractions", async (req, res) => {
-  let attractions = await Attraction.find({}).limit(3);
+  let attractions = await Attraction.find({}).limit(5);
   res.send(attractions);
 });
 
@@ -170,7 +205,10 @@ app.delete("/attractions/:id", isLoggedIn, isAuthor, async (req, res) => {
   let deletedAttraction = await Attraction.findOneAndDelete({
     _id: req.params.id,
   });
-  if (deletedAttraction) return res.send({ _id: deletedAttraction._id });
+  if (deletedAttraction) {
+    cloudinaryDeleteImages(deletedAttraction.images);
+    return res.send({ _id: deletedAttraction._id });
+  }
   res.send("ATTRACTION NOT FOUND");
 });
 

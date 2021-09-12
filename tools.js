@@ -9,14 +9,19 @@ cloudinary.config({
   api_secret: process.env.API_SECRET,
 });
 
+let cloudinaryDeleteImages = (images) => {
+  let public_ids = images.map((image) => image.public_id);
+  cloudinary.api.delete_resources(public_ids);
+};
+
 let cloudinaryUploader = ({ path, originalname }) => {
   return new Promise((resolve) => {
     cloudinary.uploader
       .upload(path, {
         public_id: `arcane-london/${originalname}`,
       })
-      .then(({ url }) => {
-        resolve(url);
+      .then(({ url, public_id }) => {
+        resolve({ url, public_id: String(public_id) });
       });
   });
 };
@@ -30,10 +35,14 @@ let getGeocode = (address) => {
           key: process.env.GOOGLE_MAPS_API_KEY,
         },
       })
-      .then(({data}) => {
-        resolve(data.results[0].geometry.location);
+      .then(({ data }) => {
+        let geocode = data.results[0]
+          ? data.results[0].geometry.location
+          : { lat: 0, lng: 0 };
+
+        resolve(geocode);
       });
   });
 };
 
-module.exports = { cloudinaryUploader, getGeocode };
+module.exports = { cloudinaryUploader, getGeocode, cloudinaryDeleteImages };
