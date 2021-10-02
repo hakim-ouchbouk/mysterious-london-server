@@ -1,14 +1,16 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
-const passport = require("passport");
+const passport = require("./passport-setup");
 const LocalStrategy = require("passport-local");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const multer = require("multer");
 const cors = require("cors");
-// const flash = require('connect-flash')
 const upload = multer({ dest: "uploads/" });
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.CLIENT_ID);
+
 const _ = require("lodash");
 const {
   cloudinaryUploader,
@@ -23,7 +25,7 @@ const Attraction = require("./models/attraction");
 
 const { isLoggedIn, isAuthor } = require("./middleware");
 
-const dbURL = "mongodb://localhost:27017/arkhane-london";
+const dbURL = "mongodb://localhost:27017/arcane-london";
 
 mongoose.connect(dbURL, { useNewUrlParser: true }, () => {
   console.log("DATABASE CONNECTION ESTABLISHED");
@@ -31,8 +33,12 @@ mongoose.connect(dbURL, { useNewUrlParser: true }, () => {
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-// app.use(flash())
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "http://localhost:5000"],
+    credentials: true,
+  })
+);
 const store = MongoStore.create({ mongoUrl: dbURL, touchAfter: 24 * 3600 });
 
 app.use(
@@ -47,25 +53,48 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.use(new LocalStrategy(User.authenticate()));
-
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
-
 app.get("/", (req, res) => {
   res.send("WELCOME TO ARKHANE LONDON");
 });
 
 //AUTH
 
-app.post("/image", upload.single("image"), async (req, res) => {
-  let url = await cloudinaryUploader(req.file);
-  res.send(url);
-});
-
 app.post("/login", passport.authenticate("local"), (req, res) => {
   let { _id, username } = req.user;
   res.send({ id: _id, username });
+});
+
+app.post("/oauth", async (req, res) => {
+  const { token } = req.body;
+  const ticket = await client
+    .verifyIdToken({
+      idToken: token,
+      audience: process.env.CLIENT_ID,
+    })
+    .catch((err) => {
+      res.send("COUDLD NOT VERFY TOKEN");
+    });
+  const { email, given_name } = ticket.getPayload();
+
+  let user = await User.findOne({ email });
+  if (user) {
+    req.login(user, function (err) {
+      if (err) {
+        return next(err);
+      }
+      let { _id, username } = user;
+      return res.send({ id: _id, username, oauth: true });
+    });
+  } else {
+    let newUser = await User.create({ email, username: given_name });
+    req.login(newUser, function (err) {
+      if (err) {
+        return next(err);
+      }
+      let { _id, username } = newUser;
+      return res.send({ id: _id, username, oauth: true });
+    });
+  }
 });
 
 app.post("/logout", isLoggedIn, (req, res) => {
@@ -78,8 +107,15 @@ app.get("/user", isLoggedIn, (req, res) => {
 });
 
 app.post("/register", async (req, res) => {
-  let { username, password } = req.body;
-  let user = await User.register({ username }, password);
+  let { username, email, password } = req.body;
+  let user = await User.register({ username, email }, password);
+  req.login(user, function (err) {
+    if (err) {
+      return next(err);
+    }
+    let { _id, username } = user;
+    return res.send({ id: _id, username });
+  });
   res.send({ username: user.username, id: user._id });
 });
 
@@ -127,23 +163,12 @@ app.put(
   upload.array("images"),
   async (req, res) => {
     let { name, description, location, deleteImages } = req.body;
+
     let deleteImgs = JSON.parse(deleteImages);
+
     let geocode = await getGeocode(location);
 
-    let updateImages = async (_id, deleteImgs) => {
-      let attraction = await Attraction.findOne({ _id });
-      if (deleteImgs.length > 0) {
-        deleteImgs.map( (image) => {
-          let index = _.findIndex(
-            attraction.images,
-            ({ public_id }) => public_id === image.public_id
-          );
-          attraction.images.splice(index, 1);
-        });
-        cloudinaryDeleteImages(deleteImgs);
-        return attraction.images;
-      }
-    };
+    if (deleteImgs.length > 0) cloudinaryDeleteImages(deleteImgs);
 
     if (req.files.length > 0) {
       let images = [];
@@ -151,15 +176,7 @@ app.put(
       for (let file of req.files) {
         images.push(await cloudinaryUploader(file));
       }
-      images.concat(updateImages(req.params.id, deleteImgs));
-      let attraction = await Attraction.findOneAndUpdate(
-        { _id: req.params.id },
-        { name, description, location, geocode, images },
-        { new: true }
-      );
 
-      res.send(attraction);
-    } else {
       let attraction = await Attraction.findOneAndUpdate(
         { _id: req.params.id },
         {
@@ -167,7 +184,40 @@ app.put(
           description,
           location,
           geocode,
-          image: updateImages(req.params.id, deleteImgs),
+          $pull: {
+            images: {
+              public_id: {
+                $in: deleteImgs,
+              },
+            },
+          },
+        },
+        { new: true }
+      );
+
+      let att = await Attraction.findOneAndUpdate(
+        { _id: req.params.id },
+        { images: images.concat(attraction.images) },
+        { new: true }
+      );
+
+      res.send(att);
+    } else {
+      let attraction = await Attraction.findOneAndUpdate(
+        { _id: req.params.id },
+
+        {
+          name,
+          description,
+          location,
+          geocode,
+          $pull: {
+            images: {
+              public_id: {
+                $in: deleteImgs,
+              },
+            },
+          },
         },
         { new: true }
       );
@@ -178,17 +228,20 @@ app.put(
 );
 
 app.get("/attractions", async (req, res) => {
-  let attractions = await Attraction.find({}).limit(5);
+  let attractions = await Attraction.find({}).limit(8);
   res.send(attractions);
 });
 
 app.get("/attractions/search", async (req, res) => {
   let { q } = req.query;
-  let attractions = await Attraction.find({
-    name: { $regex: q, $options: "i" },
-  });
+  if (q) {
+    let attractions = await Attraction.find({
+      name: { $regex: q, $options: "i" },
+    });
+    return res.send(attractions);
+  }
 
-  res.send(attractions);
+  res.send([]);
 });
 
 app.get("/attractions/all", async (req, res) => {
@@ -196,8 +249,14 @@ app.get("/attractions/all", async (req, res) => {
   res.send(attractions);
 });
 
+app.get("/attractions/count", async (req, res) => {
+  let count = await Attraction.countDocuments({});
+  res.send({ count });
+});
+
 app.get("/attractions/:id", async (req, res) => {
   let attraction = await Attraction.findOne({ _id: req.params.id });
+  await attraction.populate("reviews.author");
   res.send(attraction);
 });
 
@@ -220,6 +279,7 @@ app.post("/attractions/:id/reviews", isLoggedIn, async (req, res) => {
   let review = { content, author: req.user._id, stars };
   attraction.reviews.push(review);
   await attraction.save();
+  await attraction.populate("reviews.author");
   res.send(attraction);
 });
 
@@ -240,6 +300,7 @@ app.delete(
       return false;
     });
     attraction.reviews = reviews;
+    await attraction.populate("reviews.author");
     await attraction.save();
     res.send(attraction);
   }
@@ -257,7 +318,14 @@ app.post("/attractions/:id/beenthere", isLoggedIn, async (req, res) => {
       await currentUser.save();
       let { beenThere } = await currentUser.populate("beenThere");
       let { wantToVisit } = await currentUser.populate("wantToVisit");
+      attraction.visited++;
+      if (attraction.wantToVisit - 1 < 0) {
+        attraction.wantToVisit = 0;
+      } else {
+        attraction.wantToVisit--;
+      }
 
+      await attraction.save();
       return res.send({ beenThere, wantToVisit });
     }
     return res.send("ALREADY ADDED");
@@ -276,10 +344,15 @@ app.post("/attractions/:id/wanttovist", isLoggedIn, async (req, res) => {
   let attraction = await Attraction.findOne({ _id: req.params.id });
   if (attraction) {
     let currentUser = await User.findById({ _id: req.user._id });
-    if (!currentUser.wantToVisit.includes(req.params.id)) {
+    if (
+      !currentUser.wantToVisit.includes(req.params.id) &&
+      !currentUser.beenThere.includes(req.params.id)
+    ) {
       currentUser.wantToVisit.push(req.params.id);
       await currentUser.save();
       let { wantToVisit } = await currentUser.populate("wantToVisit");
+      attraction.wantToVisit++;
+      await attraction.save();
       return res.send({ wantToVisit });
     }
 
