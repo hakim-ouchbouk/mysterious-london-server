@@ -53,15 +53,17 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.get("/", (req, res) => {
-  res.send("WELCOME TO ARKHANE LONDON");
-});
-
 //AUTH
 
-app.post("/login", passport.authenticate("local"), (req, res) => {
-  let { _id, username } = req.user;
-  res.send({ id: _id, username });
+app.post("/login", (req, res, next) => {
+  passport.authenticate("local", function (err, user, info) {
+    if (!user) {
+      return res.send("Incorrect password or username");
+    }
+    req.logIn(user, function (err) {
+      return res.send({ id: user._id, username: user.username });
+    });
+  })(req, res, next);
 });
 
 app.post("/oauth", async (req, res) => {
@@ -108,6 +110,17 @@ app.get("/user", isLoggedIn, (req, res) => {
 
 app.post("/register", async (req, res) => {
   let { username, email, password } = req.body;
+
+
+  if (await User.findOne({ email })) {
+    return res.send("Email already in use");
+  }
+
+
+  if (await User.findOne({ username })) {
+    return res.send("Username already in use");
+  }
+
   let user = await User.register({ username, email }, password);
   req.login(user, function (err) {
     if (err) {
