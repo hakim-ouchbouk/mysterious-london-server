@@ -111,11 +111,9 @@ app.get("/user", isLoggedIn, (req, res) => {
 app.post("/register", async (req, res) => {
   let { username, email, password } = req.body;
 
-
   if (await User.findOne({ email })) {
     return res.send("Email already in use");
   }
-
 
   if (await User.findOne({ username })) {
     return res.send("Username already in use");
@@ -284,6 +282,8 @@ app.delete("/attractions/:id", isLoggedIn, isAuthor, async (req, res) => {
   res.send("ATTRACTION NOT FOUND");
 });
 
+
+
 app.post("/attractions/:id/reviews", isLoggedIn, async (req, res) => {
   let attraction = await Attraction.findById(req.params.id);
   if (!attraction) return res.status(400).send("ATTRACTION NOT FOUND");
@@ -291,6 +291,15 @@ app.post("/attractions/:id/reviews", isLoggedIn, async (req, res) => {
   let { content, stars } = req.body;
   let review = { content, author: req.user._id, stars };
   attraction.reviews.push(review);
+
+  let starsSum = 0;
+  attraction.reviews.map(({ stars }) => {
+    starsSum += stars;
+  });
+
+  let averageRating = starsSum / attraction.reviews.length;
+  attraction.averageRating = averageRating;
+
   await attraction.save();
   await attraction.populate("reviews.author");
   res.send(attraction);
@@ -312,6 +321,19 @@ app.delete(
 
       return false;
     });
+
+    if (reviews.length > 0) {
+      let starsSum = 0;
+      reviews.map(({ stars }) => {
+        starsSum += stars;
+      });
+
+      let averageRating = starsSum / reviews.length;
+      attraction.averageRating = averageRating;
+    } else {
+      attraction.averageRating = 0;
+    }
+
     attraction.reviews = reviews;
     await attraction.populate("reviews.author");
     await attraction.save();

@@ -31,6 +31,7 @@ const attractionSchema = new mongoose.Schema({
   },
   visited: { type: Number, default: 0 },
   wantToVisit: { type: Number, default: 0 },
+  averageRating: { type: Number, default: 0 },
 });
 
 module.exports = mongoose.model("Attraction", attractionSchema);
