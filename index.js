@@ -5,7 +5,6 @@ const passport = require("./passport-setup");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const cors = require("cors");
-const { OAuth2Client } = require("google-auth-library");
 const attractionsRouter = require("./routers/attractions");
 const authRouter = require("./routers/auth");
 

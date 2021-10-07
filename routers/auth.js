@@ -1,15 +1,12 @@
 let express = require("express");
 let router = express.Router();
-require("dotenv").config();
 const passport = require("../passport-setup");
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.CLIENT_ID);
 
-
 const User = require("../models/user");
 
 const { isLoggedIn } = require("../middleware");
-
 
 router.post("/login", (req, res, next) => {
   passport.authenticate("local", function (err, user, info) {

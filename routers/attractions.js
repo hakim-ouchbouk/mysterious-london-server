@@ -299,4 +299,9 @@ router.post("/attractions/:id/list", isLoggedIn, async (req, res) => {
   res.send("ATTRACION DOES NOT EXIST");
 });
 
+router.get("/user/list", isLoggedIn, async (req, res) => {
+  let { list } = await User.findById({ _id: req.user._id }).populate("list");
+  res.send(list);
+});
+
 module.exports = router;
