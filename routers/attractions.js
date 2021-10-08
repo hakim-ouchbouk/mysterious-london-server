@@ -10,13 +10,10 @@ const {
   cloudinaryDeleteImages,
 } = require("../tools");
 
-
 const User = require("../models/user");
 const Attraction = require("../models/attraction");
 
 const { isLoggedIn, isAuthor } = require("../middleware");
-
-
 
 //ATTRACTIONS
 
@@ -292,11 +289,27 @@ router.post("/attractions/:id/list", isLoggedIn, async (req, res) => {
 
       return res.send({ list });
     }
-
-    return res.send("ALREADY ADDED");
   }
 
-  res.send("ATTRACION DOES NOT EXIST");
+  res.send("WRONG REQUEST");
+});
+
+router.delete("/attractions/:id/list", isLoggedIn, async (req, res) => {
+  let attraction = await Attraction.findOne({ _id: req.params.id });
+  if (attraction) {
+    let currentUser = await User.findById({ _id: req.user._id });
+    if (currentUser.list.includes(req.params.id)) {
+      let newList = currentUser.list.filter((attractionId) => {
+        return !attractionId.equals(req.params.id);
+      });
+      currentUser.list = newList;
+      await currentUser.save();
+      let { list } = await currentUser.populate("list");
+      return res.send({ list });
+    }
+  }
+
+  res.send("WRONG REQUEST");
 });
 
 router.get("/user/list", isLoggedIn, async (req, res) => {
