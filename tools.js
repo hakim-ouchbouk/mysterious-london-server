@@ -7,7 +7,7 @@ cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.API_KEY,
   api_secret: process.env.API_SECRET,
-  secure:true
+  secure: true,
 });
 
 let cloudinaryDeleteImages = (images) => {
@@ -21,8 +21,8 @@ let cloudinaryUploader = ({ path, originalname }) => {
       .upload(path, {
         public_id: `arcane-london/${originalname}`,
       })
-      .then(({ url, public_id }) => {
-        resolve({ url, public_id: String(public_id) });
+      .then(({ secure_url, public_id }) => {
+        resolve({ url: secure_url, public_id: String(public_id) });
       });
   });
 };
