@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const passport = require("./passport-setup");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
+const cors = require('cors')
 const path = require("path");
 
 // const cors = require("cors");
@@ -12,10 +13,9 @@ const authRouter = require("./routers/auth");
 
 const app = express();
 
-// const dbURL = "mongodb://localhost:27017/arcane-london";
-// const dbURLDocker = "mongodb://host.docker.internal:27017/arcane-london";
+const dbURL = "mongodb://localhost:27017/arcane-london";
+// const dbURLOnline = `mongodb+srv://db-user:${process.env.DB_PASSWORD}@cluster0.1i2oo.mongodb.net/arcane-london?retryWrites=true&w=majority`;
 
-const dbURL = `mongodb+srv://db-user:${process.env.DB_PASSWORD}@cluster0.1i2oo.mongodb.net/arcane-london?retryWrites=true&w=majority`;
 const store = MongoStore.create({ mongoUrl: dbURL, touchAfter: 24 * 3600 });
 
 mongoose.connect(dbURL, { useNewUrlParser: true }, () => {
@@ -24,12 +24,12 @@ mongoose.connect(dbURL, { useNewUrlParser: true }, () => {
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-// app.use(
-//   cors({
-//     origin: ["http://localhost:3000", "http://localhost:5000"],
-//     credentials: true,
-//   })
-// );
+
+
+app.use(cors({
+  origin:'http://localhost:3000',
+  credentials:true
+}))
 
 app.use(
   session({
