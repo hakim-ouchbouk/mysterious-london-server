@@ -4,7 +4,6 @@ const mongoose = require("mongoose");
 const passport = require("./passport-setup");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
-// const cors = require("cors");
 const path = require("path");
 
 const attractionsRouter = require("./routers/attractions");
@@ -23,12 +22,6 @@ mongoose.connect(dbURL, { useNewUrlParser: true }, () => {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// app.use(
-//   cors({
-//     origin: "http://localhost:3000",
-//     credentials: true,
-//   })
-// );
 
 app.use(
   session({
