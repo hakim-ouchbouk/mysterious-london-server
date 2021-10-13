@@ -4,7 +4,6 @@ const mongoose = require("mongoose");
 const passport = require("./passport-setup");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
-// const cors = require('cors')
 const path = require("path");
 
 const attractionsRouter = require("./routers/attractions");
@@ -12,7 +11,6 @@ const authRouter = require("./routers/auth");
 
 const app = express();
 
-// const dbURL = "mongodb://localhost:27017/arcane-london";
 const dbURL = `mongodb+srv://db-user:${process.env.DB_PASSWORD}@cluster0.1i2oo.mongodb.net/arcane-london?retryWrites=true&w=majority`;
 
 const store = MongoStore.create({ mongoUrl: dbURL, touchAfter: 24 * 3600 });
@@ -25,14 +23,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 
-// app.use(cors({
-//   origin:'http://localhost:3000',
-//   credentials:true
-// }))
-
 app.use(
   session({
-    secret: "keyboard cat",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
     store,
@@ -49,11 +42,9 @@ app.use(passport.session());
 
 app.use(express.static(path.join(__dirname, "client/build")));
 
-//AUTH
 
 app.use("/api", authRouter);
 
-//ATTRACTIONS
 
 app.use("/api", attractionsRouter);
 
